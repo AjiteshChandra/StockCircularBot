@@ -24,8 +24,8 @@ NSE circulars are often hard to track due to their volume and frequent updates, 
 
 - Qdrant for vector storage and retrieval  
 - OpenAI / Gemini Models for generation  
-- Streamlit for UI or API endpoint  
-- NSE Circular Dataset (PDFs)
+- Streamlit for UI 
+- NSE Circular PDFs
 
 ---
 
