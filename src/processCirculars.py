@@ -3,7 +3,9 @@ import io
 from datetime import datetime as dt
 from pathlib import Path
 import pdfplumber
+import shutil
 import argparse
+import re
 import json
 import logging
 import time
@@ -12,13 +14,12 @@ from tqdm.auto import tqdm
 from collections import defaultdict
 import requests
 from src.logger import setup_logging
-from tabulate import tabulate
 from zipfile import ZipFile
 import uuid
 import hashlib
 
 log_path = Path.cwd() / 'logs'
-setup_logging("Data_fetch", log_dir=log_path,to_console=True,console_filter_keywords=["Failed","Successfully","Error",'ready'])
+# setup_logging("Data_fetch", log_dir=log_path,to_console=True,console_filter_keywords=["Failed","Successfully","Error",'ready'])
 logger = logging.getLogger(__name__)
 
 class CircularsFetchProcess:
@@ -63,6 +64,19 @@ class CircularsFetchProcess:
                 results.append(result)
 
         return results
+    def deleteCircFolders(self):
+        try:
+            pdfpath = Path(self.folder)/"pdfs"
+            zipPath = Path(self.folder)/"zips"
+            if pdfpath.exists():
+                shutil.rmtree(pdfpath)
+            if zipPath.exists():
+                shutil.rmtree(zipPath)
+        except Exception as e:
+            logger.error(f"Could not delete files from {self.folder}:{e}")
+
+           
+
     def removeDuplicateCirculars(self,circulars):
         seen = set()
         unique = []
@@ -159,18 +173,24 @@ class CircularsFetchProcess:
         
                     # Open PDF directly from memory
                     pdf_file = io.BytesIO(pdf_bytes)
-                    text = self.extract_text_and_tables(pdf_file,json)
-                    # pdf_texts.append(text)
-                    final.update({Path(name).stem+'.pdf': text})
+                    if Path(name).stem == Path(file).stem:
+                        text = self.extract_text_and_tables(pdf_file,json,circ=True)
+                        final.update({Path(name).stem+'.pdf': text})
+                    else:
+                        text = self.extract_text_and_tables(pdf_file,json,circ=False)
+                        final.update({Path(name).stem+'.pdf': text})
 
         return final
     
-    def getTables(self,json,page):
+    def getTables(self,json,page,circ=False):
         """Extract Tables from all the pages in PDF"""
         all_tables=[]
         tables= page.find_tables()
         ## Skipping the circular ref table(since its already present in metadata)
-        start = 0 if page.page_number > 1 else 1
+        if circ:
+            start = 0 if page.page_number > 1 else 1
+        else:
+            start = 0
         for table in range(start,len(tables)):
             table_id=self.generate_table_id(json,table_number=table,pg_no=page.page_number)
             cl =  tables[table].extract()
@@ -185,7 +205,7 @@ class CircularsFetchProcess:
 
         return all_tables if len(all_tables) > 0 else []
     
-    def extract_text_and_tables(self,file,json):
+    def extract_text_and_tables(self,file,json,circ=False):
         all_page_text= []
         
         try:
@@ -228,12 +248,15 @@ class CircularsFetchProcess:
                         line_text = " ".join(w['text'] for w in line_words)
                         outside_text += line_text + "\n"
 
-                    tables = self.getTables(json,page)
-                    page_text = {'page_number':page.page_number,"page_text":outside_text,'tables':tables}
+                    pattern = r'\nSub:\s*-?\s*[^\n]+\n'
+                    outside_text  = re.sub(pattern, '\n', outside_text)
+                    tables = self.getTables(json,page,circ=circ)
+                    page_text = {'page_number':page.page_number,"page_text":outside_text.strip(),'tables':tables}
                     all_page_text.append(page_text)
 
                 
-        except FileNotFoundError:
+        except Exception as e:
+            logger.error(f"Error in extracting content from {file}")
             return None
             
         return all_page_text
@@ -250,7 +273,7 @@ class CircularsFetchProcess:
                 json = {id:uuid.uuid4().hex,**json}
                 return  json
             
-            text=self.extract_text_and_tables(file,json)
+            text=self.extract_text_and_tables(file,json,circ=True)
             json["documents"].append({file.name:text})
             json.update(id=uuid.uuid4().hex)
     
@@ -286,6 +309,8 @@ class CircularsFetchProcess:
 
         logger.info("Extracted text from PDF's")
         self.save(finalExtractedContent)
+        self.deleteCircFolders()
+        logger.info(f"Deleted folders where circulars were saved locally from {self.folder}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

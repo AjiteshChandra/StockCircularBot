@@ -1,0 +1,16 @@
+[project]
+name = "rag-chatbot"
+version = "0.1.0"
+description = "AI assistant to ask any query regarding the latest circulars from NSE"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docker>=7.1.0",
+    "fastembed>=0.7.3",
+    "nsepython>=2.97",
+    "openai>=2.7.1",
+    "pandas>=2.3.3",
+    "pdfplumber>=0.11.7",
+    "qdrant-client[fastembed]>=1.15.1",
+    "tqdm>=4.67.1",
+]

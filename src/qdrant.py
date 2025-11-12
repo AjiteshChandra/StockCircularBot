@@ -1,20 +1,17 @@
 import platform
 import subprocess
 import json
+import requests
 import docker
 import argparse
-from src.logger import setup_logging
+import sys
 import time
 import logging
 import uuid
 from pathlib import Path
 import os
-log_path = Path.cwd() / 'logs'
-setup_logging("start_qdrant", log_dir=log_path,to_console=True,console_filter_keywords=["Failed","Successfully","Error",'ready'])
-logger = logging.getLogger(__name__)
 import docker
 from docker.errors import NotFound, APIError
-
 import time
 
 class QdrantManager:
@@ -31,7 +28,7 @@ class QdrantManager:
                 try:
                     subprocess.run(['sudo', 'systemctl', 'start', 'docker'], check=True)
                     print("Docker service started")
-                    logger.info("Docker service started")
+                    
                 except subprocess.CalledProcessError as e:
                     print(f"Failed to start Docker: {e}")
             
@@ -39,14 +36,14 @@ class QdrantManager:
                 # Start Docker Desktop on macOS
                 subprocess.Popen(['open', '-a', 'Docker'])
                 print("Docker Desktop starting...")
-                logger.info("Docker Desktop started")
+               
             
             elif system == "Windows":
                 # Start Docker Desktop on Windows
                 subprocess.Popen(['C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe'])
                 print("Docker Desktop starting...")
                 time.sleep(10)
-                logger.info("Docker Desktop started")
+               
 
             self.client = docker.from_env()
     def start(self):
@@ -63,7 +60,7 @@ class QdrantManager:
                     print("Starting existing container...")
                     print(f"  Dashboard: http://localhost:{self.rest_port}/dashboard")
                     container.start()
-                    time.sleep(5)
+                    time.sleep(7)
                     return container
             except NotFound:
                 pass
@@ -89,7 +86,7 @@ class QdrantManager:
                 restart_policy={"Name": "unless-stopped"}
             )
             
-            print(f"✓ Qdrant started")
+            print(f"Qdrant started")
             print(f"  Dashboard: http://localhost:{self.rest_port}/dashboard")
             time.sleep(5)
             
@@ -115,7 +112,7 @@ class QdrantManager:
             # Verify it stopped
             container.reload()
             if container.status == 'exited':
-                print("✓ Container stopped successfully")
+                print("Container stopped successfully")
                 return True
             else:
                 print(f"Warning: Container status is {container.status}")
@@ -135,6 +132,7 @@ class QdrantManager:
         time.sleep(2)
         return self.start()
     
+ 
     def status(self):
         """Check container status"""
         self.client = docker.from_env()
@@ -156,7 +154,7 @@ class QdrantManager:
         try:
             container = self.client.containers.get(self.container_name)
             container.remove()
-            print("✓ Container removed")
+            print("Container removed")
         except NotFound:
             print("Container not found")
         
@@ -164,14 +162,15 @@ class QdrantManager:
             try:
                 volume = self.client.volumes.get(f'{self.container_name}_data')
                 volume.remove()
-                print("✓ Volume removed")
+                print("Volume removed")
             except NotFound:
                 print("Volume not found")
 
-# Usage
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--option',choices=['start', 'stop','status'],default='start')
+    parser.add_argument('--option',choices=['start', 'stop','status','remove'],default='start')
+    parser.add_argument("--remove_volume",choices=["yes","no"],default='no')
     args = parser.parse_args()
 
     manager = QdrantManager()
@@ -179,15 +178,12 @@ if __name__ == '__main__':
         manager.start_docker_service()
         # Start
         manager.start()
+    
     elif args.option == 'status':
         # Check status
         manager.status()
-    else:
+    elif args.option == 'stop' :
         # Stop properly
         manager.stop()
-    
-    # Or restart
-    # manager.restart()
-    
-    # Remove everything
-    # manager.remove(remove_volume=True)
+    else:
+        manager.remove(remove_volume=args.remove_volumne)
