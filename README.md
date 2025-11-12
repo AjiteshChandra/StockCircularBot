@@ -15,7 +15,7 @@ NSE circulars are often hard to track due to their volume and frequent updates, 
 - Retrieves the latest NSE circulars from official NSE Website   
 - Uses embedding search to find relevant circulars for a given query  
 - Generates human-like, factual responses using an LLM  
-- Supports both chat-based and API-based interactions  
+- Understands natural language and responds with context-aware answers. 
  
 
 ---
