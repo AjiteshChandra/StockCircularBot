@@ -1,5 +1,5 @@
 # RAG Chatbot for NSE Circulars
-![Demo](https://github.com/AjiteshChandra/StockCircularBot/issues/1#issue-3644045269)
+![Demo](https://github.com/user-attachments/assets/015d0b97-a77d-4a43-a80f-c00c29d2dcb7)
 
 ---
 
