@@ -1,5 +1,6 @@
 # RAG Chatbot for NSE Circulars
-![Demo](media/demo.gif)
+![Demo](https://github.com/AjiteshChandra/StockCircularBot/issues/1#issue-3644045269)
+
 ---
 
 This project is a Retrieval-Augmented Generation (RAG) chatbot designed to answer queries related to NSE (National Stock Exchange) circulars. Using LLMs and context retrieval from official NSE circulars, the chatbot provides accurate and contextual responses to users looking for regulatory updates, compliance details, or announcements.
