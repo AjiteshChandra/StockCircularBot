@@ -1,5 +1,5 @@
 # RAG Chatbot for NSE Circulars
-[![Demo Video](media/thumbnail.png)](https://github.com/user-attachments/assets/015d0b97-a77d-4a43-a80f-c00c29d2dcb7)
+[![Demo Video](media/thumbnail.png)](https://github.com/user-attachments/assets/713fb845-56b0-4877-b743-b73b3b65ee47)
 
 ---
 
