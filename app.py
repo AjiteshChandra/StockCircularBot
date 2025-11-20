@@ -415,7 +415,7 @@ with st.sidebar:
     # Example Queries with better formatting
     with st.expander("💡 Example Questions", expanded=False):
         examples = [
-            "📋 What are the indicators for surveillance action?",
+            "📋 List all corporate actions in next 3 days",
             "📜 Recent SEBI regulations on derivatives",
             "💼 What is the T+1 settlement cycle implementation?",
             "🔍 Latest circular on mutual funds"
@@ -454,10 +454,10 @@ st.markdown("""
                    -webkit-background-clip: text; 
                    -webkit-text-fill-color: transparent;
                    background-clip: text;'>
-            🔍 NSE Circular Assistant
+            🔍 NSE Regulatory Assistant
         </h1>
         <p style='color: white; font-size: 1.2rem; opacity: 0.95; margin-top: 10px; font-weight: 300;'>
-            Get instant, accurate answers about NSE regulations and circulars
+            Get instant, accurate answers about NSE regulations, circulars, and corporate actions
         </p>
     </div>
 """, unsafe_allow_html=True)
@@ -479,7 +479,7 @@ st.html("""
 
 # Welcome message streaming function
 def stream_welcome_tokens():
-    message = "👋 Hi! Ask me anything about NSE circulars, regulations, and compliance."
+    message = "👋 Hi! Ask me anything about NSE circulars, regulations, compliance and corporate actions."
     words = message.split()
     for word in words:
         yield word + " "
@@ -488,7 +488,7 @@ def stream_welcome_tokens():
 
 
 # Handle new user input 
-question = st.chat_input("💬 Ask me anything about NSE circulars...", key="chat_input")
+question = st.chat_input("💬 Ask me anything about NSE circulars or corporate actions ...", key="chat_input")
 
 #  Welcome message (only if chat is empty)
 if len(st.session_state.chat_history) == 0 and not st.session_state.welcome_shown:
@@ -514,35 +514,37 @@ if question:
         st.markdown(question)
     
     # Show spinner OUTSIDE chat_message
-    with st.spinner("🔍 Searching through NSE circulars..."):
-        time.sleep(0.5)
+    
+        
     
     # Generate and display assistant response
     with st.chat_message("assistant", avatar="🤖"):
-        response_placeholder = st.empty()
-        full_response = ""
-        
-        try:
-           
-            for chunk in rag_system.rag_streaming(question, st.session_state.chat_history, top_k=15):
-                full_response += chunk
-                response_placeholder.markdown(full_response + "▌")
+        with st.spinner("🔍 Searching..."):
+            time.sleep(0.5)
+            response_placeholder = st.empty()
+            full_response = ""
             
-            response_placeholder.markdown(full_response)
+            try:
             
-            # Add assistant response
-            st.session_state.chat_history.append({
-                "role": "assistant", 
-                "content": full_response
-            })
-            
-        except Exception as e:
-            error_msg = f"❌ **Error occurred:** {str(e)}\n\nPlease try again or rephrase your question."
-            st.error(error_msg)
-            st.session_state.chat_history.append({
-                "role": "assistant", 
-                "content": error_msg
-            })
+                for chunk in rag_system.rag_streaming(question, st.session_state.chat_history, top_k=15):
+                    full_response += chunk
+                    response_placeholder.markdown(full_response + "▌")
+                
+                response_placeholder.markdown(full_response)
+                
+                # Add assistant response
+                st.session_state.chat_history.append({
+                    "role": "assistant", 
+                    "content": full_response
+                })
+                
+            except Exception as e:
+                error_msg = f"❌ **Error occurred:** {str(e)}\n\nPlease try again or rephrase your question."
+                st.error(error_msg)
+                st.session_state.chat_history.append({
+                    "role": "assistant", 
+                    "content": error_msg
+                })
 # Floating action button for scrolling to top
 if len(st.session_state.chat_history) > 5:
     st.markdown("""

@@ -1,14 +1,14 @@
 # RAG Chatbot for NSE Circulars
-[![Demo Video](media/thumbnail.png)](https://github.com/user-attachments/assets/713fb845-56b0-4877-b743-b73b3b65ee47)
+[![Demo Video](media/thumbnail.jpg)](https://github.com/user-attachments/assets/713fb845-56b0-4877-b743-b73b3b65ee47)
 
 ---
 
-This project is a Retrieval-Augmented Generation (RAG) chatbot designed to answer queries related to NSE (National Stock Exchange) circulars. Using LLMs and context retrieval from official NSE circulars, the chatbot provides accurate and contextual responses to users looking for regulatory updates, compliance details, or announcements.
+This project is a Retrieval-Augmented Generation (RAG) chatbot designed to answer queries related to NSE (National Stock Exchange) circulars. Using LLMs and context retrieval from official NSE circulars, the chatbot provides accurate and contextual responses to users looking for regulatory updates, compliance details, announcements or corporate actions.
 
 ---
 ## Problem Statement
 
-NSE circulars are often hard to track due to their volume and frequent updates, and many circulars contain complex regulatory language that can be difficult to understand. This makes it challenging for market participants to stay updated on compliance requirements and market changes in a timely manner. This project aims to simplify access to and comprehension of NSE circulars, enabling users to quickly grasp important regulatory updates and market changes, thus supporting faster and better-informed decision-making.
+NSE circulars are often hard to track due to their volume and frequent updates, with many containing complex regulatory language that can be difficult to understand. This makes it challenging for market participants to stay updated on compliance requirements and market changes in a timely manner. This project aims to simplify access to and comprehension of NSE circulars and corporate actions, enabling users to quickly grasp important regulatory updates, market changes, and corporate actions such as dividends, mergers, rights issues, and other adjustments. This support allows for faster and better-informed decision-making by consolidating and clarifying essential information in a user-friendly manner.
 
 ---
 ## Features
@@ -63,7 +63,7 @@ GEMINI_API_KEY=your_key_here
 
 4. Prepare the database 
 - To create a new database:
-  - Specify the start date for circulars to be added to the database.
+1.  Specify the start date for circulars to be added to the database.
     ```
     python main.py --start <start_date>
     E.g python main.py --start 01-09-2025

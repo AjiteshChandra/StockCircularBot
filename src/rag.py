@@ -3,10 +3,16 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 import time
 from collections import defaultdict
 import os
+import json
+from src.processCirculars import CircularsFetchProcess
 from qdrant_client import QdrantClient, models
 import streamlit as st
 from typing import Dict,List
 from dotenv import load_dotenv
+import re
+from datetime import datetime as dt,timedelta
+from dateparser.search import search_dates
+from pandas.tseries.offsets import BDay
 
 load_dotenv()
 
@@ -15,7 +21,7 @@ class RAG:
         self.client,self.chat_client = self.initClient()
         self.model=model
         self.provider=None
-        self.max_history = 4  # Keep last 6 exchanges (6 messages: 3 user + 3 assistant)
+        self.max_history = 4  # Keep last 4 exchanges (4 messages: 2 user + 2 assistant)
 
     def getKey(self):
         openai_key = os.getenv("OPENAI_API_KEY")
@@ -53,20 +59,110 @@ class RAG:
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
     )
             return client,chat_client
+    def check_bday(self,date):
+        """Check if the date is business day or not . If not then add 1 day"""
+        bday = BDay()
+        check_bday = bday.is_on_offset(date)
+        if not check_bday:
+            date += BDay(1)
             
-    def multi_stage_search(self,query: str, limit: int = 1) -> List[dict]:
-        results = self.client.query_points(
+        return date
+    def fetchDateRange(self,query):
+        match = re.search(r'next\s+(?:(\d+)\s+days?|week|month)', query.lower())
+        if any(term in query.lower() for term in ['latest', 'recent', 'new']):
+            end_date = dt.today().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_date = end_date - timedelta(days=15)
+            start_date = start_date.isoformat()
+            end_date = end_date.isoformat()
+            return start_date,end_date
+        elif match:
+            start_date = dt.today().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        
+            if match.group(1):  # "next X days"
+                n_days = int(match.group(1))
+                end_date = start_date + timedelta(days=n_days)
+            
+            elif 'week' in match.group(0):  # "next week"
+                days_until_monday = (7 - start_date.weekday()) % 7 or 7
+                start_date = start_date + timedelta(days=days_until_monday)
+                end_date = start_date + timedelta(days=6)
+            
+            elif 'month' in match.group(0):  # "next month" 
+                next_month = start_date.replace(day=1) + timedelta(days=32)
+                start_date = next_month.replace(day=1)
+                end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            
+            end_date = self.check_bday(end_date)
+            return start_date.isoformat(),end_date.isoformat()
+            
+        else:
+            return None,None
+    def construct_qdrant_date_filter(self,start_date=None, end_date=None, exact_date=None):
+        should_conditions = []
+
+        if exact_date:
+            should_conditions.append({
+                "key": "exDate",
+                "match": {"value": exact_date}
+            })
+            should_conditions.append({
+                "key": "cirDisplayDate",
+                "match": {"value": exact_date}
+            })
+        elif start_date and end_date:
+            should_conditions.append({
+                "key": "exDate",
+                "range": {
+                    "gte": start_date,
+                    "lte": end_date
+                }
+            })
+            should_conditions.append({
+                "key": "cirDisplayDate",
+                "range": {
+                    "gte": start_date,
+                    "lte": end_date
+                }
+            })
+
+        if not should_conditions:
+            return {"must": []}
+
+        return {
+            "should": should_conditions,
+        
+        }        
+    def multi_stage_search(self,query: str, limit: int = 1) -> list[dict]:
+        if ('corporate actions' in query.lower()) or('corporate action' in query.lower()) :
+            query = query.replace('corporate actions',"Dividend,Bonus,Rights,Distribution,Buy Back,Face Value ")
+        date_search =  search_dates(query)
+
+        start,end =self.fetchDateRange(query)
+
+
+        if start and end:
+            date_filter=self.construct_qdrant_date_filter(start_date=start,end_date=end)
+        elif date_search:
+            date = self.check_bday(date_search[0][1].replace(hour=0, minute=0, second=0, microsecond=0))
+            date_iso = date.isoformat()
+            date_filter=self.construct_qdrant_date_filter(exact_date=date_iso)
+        
+        else:
+            date_filter = self.construct_qdrant_date_filter()
+
+    
+        query_points = self.client.query_points(
             collection_name="nsechatbot-rag-sparse_dense",
             prefetch=[
                 models.Prefetch(
                     query=models.Document(
                         text=query,
-                        model="BAAI/bge-small-en",
+                        model="BAAI/bge-small-en"
                     ),
                     using="bge-small-en",
-                    # Prefetch fifteen times more results, then
+                    # Prefetch ten times more results, then
                     # expected to return, so we can really rerank
-                    limit=(16 * limit),
+                    limit=(20 * limit),
                 ),
             ],
             query=models.Document(
@@ -76,32 +172,33 @@ class RAG:
             using="bm25",
             limit=limit,
             with_payload=True,
+            query_filter=date_filter
         )
         final = []
         
-        for point in results.points:
+        for point in query_points.points:
             final.append(point.payload)
 
         pdfs_id = [res.get("id") for res in final]
-        final.sort(key=lambda x:x['cirDisplayDate'],reverse=True)
         all_related_pages = []
         for pdf_id in pdfs_id:
             # Get all pages from each particular PDF
-            pdf_pages = self.client.scroll(
-                collection_name="nsechatbot-rag-sparse_dense",
-                scroll_filter=Filter(
-                    must=[
-                        FieldCondition(
-                            key='id',
-                            match=MatchValue(value=pdf_id)
-                        )
-                    ]
-                ),
-                limit=5  ,
-                with_payload=True,
-                with_vectors=False  
-            )
-            all_related_pages.extend(pdf_pages[0])  
+            if pdf_id:
+                pdf_pages = self.client.scroll(
+                    collection_name="nsechatbot-rag-sparse_dense",
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key='id',
+                                match=MatchValue(value=pdf_id)
+                            )
+                        ]
+                    ),
+                    limit=5  ,
+                    with_payload=True,
+                    with_vectors=False  
+                )
+                all_related_pages.extend(pdf_pages[0])  
             
         all_related_pages.sort(key=lambda x: (x.payload["id"], x.payload["page_number"]))
         all_related_pages.sort(key=lambda x:x.payload["cirDisplayDate"],reverse=True)
@@ -109,6 +206,9 @@ class RAG:
         for res in all_related_pages:
             all_res.append(res.payload)
 
+        for res in final:
+            if 'circCategory' not in res.keys():
+                all_res.insert(0,res)
         return all_res
     def get_unique_circulars_with_all_pages(self,circulars, n=5):
         """
@@ -144,6 +244,7 @@ class RAG:
         - Extract and present only relevant information. Reproduce full tables only when necessary for clarity.
         - Use the most recent information when there are conflicting details across different circulars.
         - Maintain a factual, neutral tone and speak authoritatively about the information.
+        - When multiple important dates related to corporate actions (e.g., record date, ex-date, payment date) are present, list all clearly and distinctly.
         
 
         ### CLASSIFICATION GUIDELINES
@@ -189,45 +290,58 @@ class RAG:
         ### ANSWER""".strip()
 
         
-        # Build context with clear separation and better structure
         context = ""
-    
-
         grouped = defaultdict(list)
 
-        # Group by document name
-        for circular in search_results:
-            doc_name = circular.get("document_name", 'N/A')
-            grouped[doc_name].append(circular)
+        # Group by document name if available, else by type placeholder
+        for item in search_results:
+            # Use document_name or compose a label based on type keys for grouping
+            if 'document_name' in item:
+                group_key = item['document_name']
+            elif 'symbol' in item:
+                group_key = f"Corporate Action: {item.get('symbol', 'N/A')}"
+            else:
+                group_key = "Unknown Document Type"
+            grouped[group_key].append(item)
 
         # Build structured context
-        for idx, (doc_name, pages) in enumerate(grouped.items(), 1):
-            # Document header
-            context += f"=== CIRCULAR {idx}: {doc_name} ===\n\n"
-            
-            # Metadata (only once per document)
-            if pages:
-                first_page = pages[0]
-                if first_page.get('sub'):
-                    context += f"Subject: {first_page.get('sub', 'N/A')}\n"
-                if first_page.get('cirDisplayDate'):
-                    context += f"Date: {first_page.get('cirDisplayDate', 'N/A')}\n"
-                if first_page.get('circFilelink'):
-                    context += f"File Link: {first_page.get('circFilelink', 'N/A')}\n"
-            
-            context += f"\nContent:\n"
-            
-            # Add content from each page with clear page markers
-            for page_num, page in enumerate(pages, 1):
-                page_content = page.get('content', '').strip()
-                if page_content:
-                    if len(pages) > 1:
-                        context += f"\n[Page {page_num}]\n"
-                    context += f"{page_content}\n"
-            
-            # Document separator
-            context += f"\n{'='*60}\n\n"
+        for idx, (group_key, items) in enumerate(grouped.items(), 1):
+            context += f"=== DOCUMENT {idx}: {group_key} ===\n\n"
 
+            first_item = items[0]
+
+            # Distinguish corporate actions by presence of 'symbol' and no 'content'
+            if 'symbol' in first_item:
+                context += f"Symbol: {first_item.get('symbol', 'N/A')}\n"
+                context += f"Series: {first_item.get('series', 'N/A')}\n"
+                context += f"Face Value: {first_item.get('faceVal', 'N/A')}\n"
+                context += f"Subject: {first_item.get('subject', 'N/A')}\n"
+                context += f"Ex-Date: {first_item.get('exDate', 'N/A')}\n"
+                context += f"Company: {first_item.get('comp', 'N/A')}\n"
+
+            # Circulars have 'content' field with document details
+            elif 'content' in first_item:
+                # Include circular metadata (some from first_item)
+                context += f"Subject: {first_item.get('sub', 'N/A')}\n"
+                context += f"Date: {first_item.get('cirDisplayDate', 'N/A')}\n"
+                context += f"File Link: {first_item.get('circFilelink', 'N/A')}\n"
+                context += f"Department: {first_item.get('circDepartment', 'N/A')}\n"
+                context += f"Category: {first_item.get('circCategory', 'N/A')}\n"
+                context += f"\nContent:\n"
+
+                # Add all content pages in this group
+                for page_num, item in enumerate(items, 1):
+                    page_content = item.get('content', '').strip()
+                    if page_content:
+                        if len(items) > 1:
+                            context += f"\n[Page {page_num}]\n"
+                        context += f"{page_content}\n"
+
+            else:
+                # Generic fallback for unknown structures
+                context += "No structured content found for this document.\n"
+
+            context += f"\n{'='*60}\n\n"
 
         
         return prompt_template.format(query=query, context=context).strip()
@@ -236,7 +350,9 @@ class RAG:
 
         search_results = self.multi_stage_search(query, top_k)
         results = self.get_unique_circulars_with_all_pages(search_results)
+   
         prompt = self.build_prompt(query, results)
+     
         # Build messages list with history
         messages = []
         

@@ -7,6 +7,7 @@ from src.logger import setup_logging
 import time
 from tqdm.auto import tqdm
 import logging
+import os
 import uuid
 from pathlib import Path
 import os
@@ -49,8 +50,13 @@ class EmbedContent:
         return True  
 
     def createPoints(self)->list:
-        with open(f'{self.folder}/final_processed_circulars.json','r') as f:
-            circulars_data= json.load(f)
+        if os.path.exists(f'{self.folder}/final_processed_circulars.json'):
+            with open(f'{self.folder}/final_processed_circulars.json','r') as f:
+                circulars_data= json.load(f)
+        else:
+            logging.error("No circulars json data found")
+            return None
+            
 
         points=[]
        
@@ -88,12 +94,48 @@ class EmbedContent:
                             )
         
         return points
-    def createIndex(self):
-        self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="circDepartment",
-                field_schema="keyword"
+    def createIndex(self,circulars=True):
+        if circulars:
+            self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="circDepartment",
+                    field_schema="keyword"
+                )
+            self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="cirDisplayDate",
+                    field_schema=models.PayloadSchemaType.DATETIME
+                )
+        else:
+            self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="exDate",
+                    field_schema=models.PayloadSchemaType.DATETIME
+                )
+   
+    def createPointsCorpo(self):
+        if os.path.exists(f'{self.folder}/corporate_actions_data.json'):
+            with open(f'{self.folder}/corporate_actions_data.json','r') as f:
+                ca_data= json.load(f)
+        else:
+            logging.error("No corporate actions json data found")
+            return None
+
+
+        points=[]
+        for data in ca_data:
+            text = data['symbol'] + "\n" + data['comp'] + "\n" + data["subject"]
+            points.append(
+                models.PointStruct(
+                    id = uuid.uuid4().hex,
+                    vector= {
+                        "bge-small-en":models.Document(text=text,model="BAAI/bge-small-en"),
+                        "bm25":models.Document(text=text,model="Qdrant/bm25")
+                                    },      
+                    payload=data
+                )
             )
+        return points
     def upsertPoints(self,points,desc="Embedding the PDF Circulars"):
 
             # Batch upsert
@@ -116,11 +158,24 @@ class EmbedContent:
             logger.error( "Collection could not be created")
             sys.exit(1)
 
-        points = self.createPoints()
-        self.createIndex()
-        logger.info("Qdrant points created")
-        self.upsertPoints(points=points)
-        logger.info("Qdrant points embedded sucessfully")
+        points_circ = self.createPoints()
+        points_corpo = self.createPointsCorpo()
+        if points_circ :
+            logger.info("Qdrant points created for circulars")
+            self.createIndex()
+            self.upsertPoints(points=points_circ)
+            logger.info("Qdrant points embedded sucessfully for circulars")
+        
+        if points_corpo:
+            logger.info("Qdrant points created for corporate actions data")
+            self.createIndex(circulars=False)
+            logger.info("Index created sucussfully ..")
+            self.upsertPoints(points=points_corpo,desc="Embedding corporate actions data")
+            logger.info("Qdrant points embedded sucessfully for corporate actions data")
+
+        else:
+            logger.warning("No Data found to upsert")
+            sys.exit(1)
 if __name__ == "__main__":
   
     emb_obj = EmbedContent(folder="./data")

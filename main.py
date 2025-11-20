@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime as dt
 from src.logger import setup_logging
+import sys
 import logging
 from src.processCirculars import CircularsFetchProcess
 from src.qdrant import QdrantManager
@@ -25,20 +26,25 @@ def main():
     args = get_args()
     logging.info("Fetching circulars ....")
     circobj = CircularsFetchProcess(start_date = args.start,folder=args.save_path)
-    circobj.get_and_process()
-    logging.info("Circulars Saved successfully")
-    print()
+    status =circobj.get_and_process()
+    if status:
+        logging.info("Circulars Saved successfully")
+        print()
 
 
-    qobj = QdrantManager()
-    qobj.start_docker_service()
-    logging.info("Docker started successfully")
-    qobj.start()
-    print()
+        qobj = QdrantManager()
+        qobj.start_docker_service()
+        logging.info("Docker started successfully")
+        qobj.start()
+        print()
 
-    embdob = EmbedContent(folder=args.save_path)
-    embdob.embedData()
-    logging.info("Embedded pdf content successfully")
+        embdob = EmbedContent(folder=args.save_path)
+        embdob.embedData()
+        logging.info("Embedded pdf content successfully")
+    else:
+        print('No new updated circulars or data')
+        sys.exit(1)
+        logger.info("No new updated circulars or data")
 
 
 
