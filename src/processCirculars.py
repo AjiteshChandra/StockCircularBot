@@ -103,7 +103,7 @@ class CircularsFetchProcess:
         nsefetch("https://www.nseindia.com")
         url = f'https://www.nseindia.com/api/circulars?fromDate={self.start_date}&toDate={self.end_date}'
         circulars = nsefetch(url)
-        print(len(circulars['data']))
+  
         if len(circulars['data']) == 0:
             logger.info("No new circulars to add in db")
             return None
@@ -277,7 +277,6 @@ class CircularsFetchProcess:
         return all_page_text
     def saveTracking(self,circular_data=None,corpoData=None):
         
-        # track['circLastUp']=self.end_date
         if circular_data: 
             self.track['circLastUp']=dt.strptime((circular_data[-1]["cirDisplayDate"]),"%Y-%m-%dT%H:%M:%S").strftime("%d-%m-%Y")
         if corpoData:
@@ -322,7 +321,7 @@ class CircularsFetchProcess:
 
     def getCorpoData(self):
         nsefetch("https://www.nseindia.com")
-        print(f"Corpo start:{self.corpoStart},End:{self.corpoEnd}")
+        
         ca_data_eq = nsefetch(rf"https://www.nseindia.com/api/corporates-corporateActions?index=equities&from_date={self.corpoStart}&to_date={self.corpoEnd}")
         ca_data_sme=nsefetch(rf"https://www.nseindia.com/api/corporates-corporateActions?index=sme&from_date={self.corpoStart}&to_date={self.corpoEnd}")
         ca_data_all = ca_data_eq+ca_data_sme
@@ -374,7 +373,7 @@ class CircularsFetchProcess:
     
     def get_and_process(self):
         pool = ThreadPoolExecutor(max_workers=3)
-        # zip_folder = Path(f"{self.folder}/zips")
+ 
         self.load_track()
 
         circulars = self.get_all_circulars()
