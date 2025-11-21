@@ -134,7 +134,7 @@ class RAG:
         }        
     def multi_stage_search(self,query: str, limit: int = 1) -> list[dict]:
         if ('corporate actions' in query.lower()) or('corporate action' in query.lower()) :
-            query = query.replace('corporate actions',"Dividend,Bonus,Rights,Distribution,Buy Back,Face Value ")
+            query = query.replace('corporate actions',"Dividend,Bonus,Rights,Distribution,Buy Back,Face Value,Demerger ")
         date_search =  search_dates(query)
 
         start,end =self.fetchDateRange(query)
@@ -206,9 +206,12 @@ class RAG:
         for res in all_related_pages:
             all_res.append(res.payload)
 
+        pos = 0
         for res in final:
             if 'circCategory' not in res.keys():
-                all_res.insert(0,res)
+                all_res.insert(pos,res)
+                pos += 1
+                
         return all_res
     def get_unique_circulars_with_all_pages(self,circulars, n=5):
         """
@@ -244,8 +247,12 @@ class RAG:
         - Extract and present only relevant information. Reproduce full tables only when necessary for clarity.
         - Use the most recent information when there are conflicting details across different circulars.
         - Maintain a factual, neutral tone and speak authoritatively about the information.
+        - Always identify and clearly present any corporate actions such as record dates, ex-dates, payment dates, rights issues, dividends, stock splits, etc., when mentioned in the circulars, regardless of whether the question explicitly asks about them.
         - When multiple important dates related to corporate actions (e.g., record date, ex-date, payment date) are present, list all clearly and distinctly.
-        
+        - Given a date in ISO 8601 format (e.g., 2025-12-05T00:00:00), convert it to a readable format: "Month Day, Year" (like December 5, 2025). 
+            For example:
+            Input: 2025-11-05T00:00:00
+            Output: November 5, 2025
 
         ### CLASSIFICATION GUIDELINES
         - Non-Business Days refer ONLY to calendar dates or days when markets/operations are closed
@@ -350,7 +357,7 @@ class RAG:
 
         search_results = self.multi_stage_search(query, top_k)
         results = self.get_unique_circulars_with_all_pages(search_results)
-   
+
         prompt = self.build_prompt(query, results)
      
         # Build messages list with history

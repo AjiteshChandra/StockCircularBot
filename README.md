@@ -84,7 +84,7 @@ GEMINI_API_KEY=your_key_here
 ---
 ## Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to fork this repository and open pull requests for improvements in forecasting accuracy, feature engineering, or bug fixes.
+Contributions, issue reports, and feature suggestions are highly encouraged! Please feel free to fork this repository and submit pull requests to enhance retrieval accuracy or fix bugs in the RAG chatbot
 
 ---
 ## License
