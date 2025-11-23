@@ -96,7 +96,7 @@ class CircularsFetchProcess:
         return unique
     
     def get_all_circulars(self):
-        print(f"Circ start:{self.start_date},Circ:{self.end_date}")
+       
         if not self.end_date:
             self.end_date= dt.today().strftime("%d-%m-%Y")
 
@@ -303,6 +303,10 @@ class CircularsFetchProcess:
                 else:
                     self.end_date =(self.start_date+timedelta(days=1)).strftime("%d-%m-%Y")
 
+            else:
+                 self.start_date = ((dt.strptime(lastUpCirc, '%d-%m-%Y')) +  pd.offsets.BusinessDay(1)).strftime("%d-%m-%Y")
+                 
+
             if dt.strptime(self.corpoStart,'%d-%m-%Y') <= dt.strptime(lastUpCorpo,'%d-%m-%Y'):
                 logger.info(f"Corpo actions data already upserted in db till {lastUpCorpo}")
                 self.corpoStart=dt.strptime(lastUpCorpo,'%d-%m-%Y')+pd.offsets.BusinessDay(1)
@@ -325,7 +329,7 @@ class CircularsFetchProcess:
         ca_data_eq = nsefetch(rf"https://www.nseindia.com/api/corporates-corporateActions?index=equities&from_date={self.corpoStart}&to_date={self.corpoEnd}")
         ca_data_sme=nsefetch(rf"https://www.nseindia.com/api/corporates-corporateActions?index=sme&from_date={self.corpoStart}&to_date={self.corpoEnd}")
         ca_data_all = ca_data_eq+ca_data_sme
-        print(len(ca_data_eq))
+  
         if len(ca_data_eq) ==0:
             logger.info("No new Corporate action data")
             return None

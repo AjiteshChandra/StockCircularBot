@@ -247,6 +247,7 @@ class RAG:
         - Extract and present only relevant information. Reproduce full tables only when necessary for clarity.
         - Use the most recent information when there are conflicting details across different circulars.
         - Maintain a factual, neutral tone and speak authoritatively about the information.
+        - Use the rupee symbol (₹) instead of 'Rs' for currency representation
         - Always identify and clearly present any corporate actions such as record dates, ex-dates, payment dates, rights issues, dividends, stock splits, etc., when mentioned in the circulars, regardless of whether the question explicitly asks about them.
         - When multiple important dates related to corporate actions (e.g., record date, ex-date, payment date) are present, list all clearly and distinctly.
         - Given a date in ISO 8601 format (e.g., 2025-12-05T00:00:00), convert it to a readable format: "Month Day, Year" (like December 5, 2025). 
